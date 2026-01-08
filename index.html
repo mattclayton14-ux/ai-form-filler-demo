@@ -1,0 +1,658 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, CheckCircle, AlertCircle, Globe } from 'lucide-react';
+
+const AIFormFillerDemo = () => {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [currentStep, setCurrentStep] = useState('intro');
+  const [showReview, setShowReview] = useState(false);
+  const [language, setLanguage] = useState('en');
+  const messagesEndRef = useRef(null);
+
+  const translations = {
+    en: {
+      title: "AI Form Assistant",
+      subtitle: "Unemployment Benefits Application Demo",
+      placeholder: "Type your response...",
+      send: "Send",
+      reviewing: "Review Your Application",
+      submit: "Submit Application",
+      edit: "Edit",
+      changeLanguage: "Change Language"
+    },
+    es: {
+      title: "Asistente de Formularios AI",
+      subtitle: "Demostración de Solicitud de Beneficios de Desempleo",
+      placeholder: "Escribe tu respuesta...",
+      send: "Enviar",
+      reviewing: "Revisa Tu Solicitud",
+      submit: "Enviar Solicitud",
+      edit: "Editar",
+      changeLanguage: "Cambiar Idioma"
+    },
+    ht: {
+      title: "Asistan Fòmilè AI",
+      subtitle: "Demonstrasyon Aplikasyon Benefis Chomaj",
+      placeholder: "Tape repons ou...",
+      send: "Voye",
+      reviewing: "Revize Aplikasyon Ou",
+      submit: "Soumèt Aplikasyon",
+      edit: "Modifye",
+      changeLanguage: "Chanje Lang"
+    }
+  };
+
+  const t = translations[language];
+
+  const conversationFlows = {
+    en: {
+      intro: {
+        message: "Hi! I'm here to help you file for unemployment in about 10-15 minutes. I'll ask you questions in plain English, fill out the form for you, and you'll review everything before I submit. Sound good?",
+        trigger: () => true,
+        next: 'state'
+      },
+      state: {
+        message: "Great! What state do you live in?",
+        field: 'state',
+        next: 'name'
+      },
+      name: {
+        message: "Perfect. What's your full legal name?",
+        field: 'name',
+        next: 'job_loss'
+      },
+      job_loss: {
+        message: (data) => `Thanks, ${data.name.split(' ')[0]}. When did you lose your job? You can say something like "November 24th" or "around the end of November."`,
+        field: 'terminationDate',
+        next: 'employer'
+      },
+      employer: {
+        message: "I'm sorry to hear that. Who was your employer?",
+        field: 'employer',
+        next: 'job_title'
+      },
+      job_title: {
+        message: "What was your job title? If you're not sure of the exact title, that's okay - just tell me what you did.",
+        field: 'jobTitle',
+        next: 'reason'
+      },
+      reason: {
+        message: "Got it. Why did your employment end? Were you laid off, fired, or did you quit?",
+        field: 'reason',
+        next: 'tax_question'
+      },
+      tax_question: {
+        message: "One more thing: The form asks if you want to withhold 10% of your benefits for federal taxes. That means:\n\n• **Yes** = Get 10% less now, but no tax bill later\n• **No** = Get the full amount now, but might owe taxes in April\n\nGiven you mentioned needing money urgently, I'd suggest **No** - get the full amount now. What would you prefer?",
+        field: 'taxWithholding',
+        next: 'notifications'
+      },
+      notifications: {
+        message: "Last question: How do you want to receive notifications about your claim? Email, text message, or both?",
+        field: 'notifications',
+        next: 'complete'
+      },
+      complete: {
+        message: "Perfect! I've collected all the information needed. Let me show you what I've filled out so you can review everything before we submit.",
+        trigger: () => {
+          setShowReview(true);
+          return false;
+        }
+      }
+    },
+    es: {
+      intro: {
+        message: "¡Hola! Estoy aquí para ayudarte a solicitar el desempleo en unos 10-15 minutos. Te haré preguntas en español sencillo, llenaré el formulario por ti, y revisarás todo antes de que lo envíe. ¿Te parece bien?",
+        trigger: () => true,
+        next: 'state'
+      },
+      state: {
+        message: "¡Perfecto! ¿En qué estado vives?",
+        field: 'state',
+        next: 'name'
+      },
+      name: {
+        message: "Muy bien. ¿Cuál es tu nombre legal completo?",
+        field: 'name',
+        next: 'job_loss'
+      },
+      job_loss: {
+        message: (data) => `Gracias, ${data.name.split(' ')[0]}. ¿Cuándo perdiste tu trabajo? Puedes decir algo como "24 de noviembre" o "a finales de noviembre."`,
+        field: 'terminationDate',
+        next: 'employer'
+      },
+      employer: {
+        message: "Lamento escuchar eso. ¿Quién era tu empleador?",
+        field: 'employer',
+        next: 'job_title'
+      },
+      job_title: {
+        message: "¿Cuál era tu título de trabajo? Si no estás seguro del título exacto, está bien - solo dime qué hacías.",
+        field: 'jobTitle',
+        next: 'reason'
+      },
+      reason: {
+        message: "Entiendo. ¿Por qué terminó tu empleo? ¿Te despidieron por recortes, te despidieron por causa, o renunciaste?",
+        field: 'reason',
+        next: 'tax_question'
+      },
+      tax_question: {
+        message: "Una cosa más: El formulario pregunta si quieres retener el 10% de tus beneficios para impuestos federales. Eso significa:\n\n• **Sí** = Recibes 10% menos ahora, pero no tendrás que pagar impuestos después\n• **No** = Recibes el monto completo ahora, pero podrías deber impuestos en abril\n\nDado que mencionaste necesitar dinero urgentemente, sugeriría **No** - recibe el monto completo ahora. ¿Qué prefieres?",
+        field: 'taxWithholding',
+        next: 'notifications'
+      },
+      notifications: {
+        message: "Última pregunta: ¿Cómo quieres recibir notificaciones sobre tu reclamo? ¿Correo electrónico, mensaje de texto, o ambos?",
+        field: 'notifications',
+        next: 'complete'
+      },
+      complete: {
+        message: "¡Perfecto! He recopilado toda la información necesaria. Déjame mostrarte lo que he completado para que puedas revisar todo antes de enviarlo.",
+        trigger: () => {
+          setShowReview(true);
+          return false;
+        }
+      }
+    },
+    ht: {
+      intro: {
+        message: "Bonjou! Mwen la pou ede w aplike pou chomaj nan anviwon 10-15 minit. M ap poze w kesyon an Kreyòl senp, ranpli fòmilè a pou ou, epi w ap revize tout bagay anvan m soumèt li. Sa bon pou ou?",
+        trigger: () => true,
+        next: 'state'
+      },
+      state: {
+        message: "Trè byen! Nan ki eta w ap viv?",
+        field: 'state',
+        next: 'name'
+      },
+      name: {
+        message: "Pafè. Ki non legal konplè ou?",
+        field: 'name',
+        next: 'job_loss'
+      },
+      job_loss: {
+        message: (data) => `Mèsi, ${data.name.split(' ')[0]}. Ki lè w te pèdi travay ou? Ou ka di yon bagay tankou "24 novanm" oswa "nan fen novanm."`,
+        field: 'terminationDate',
+        next: 'employer'
+      },
+      employer: {
+        message: "Mwen regret tande sa. Ki moun ki te anplwayè w?",
+        field: 'employer',
+        next: 'job_title'
+      },
+      job_title: {
+        message: "Ki tit travay ou te genyen? Si w pa sèten tit egzak la, pa gen pwoblèm - jis di m sa w te fè.",
+        field: 'jobTitle',
+        next: 'reason'
+      },
+      reason: {
+        message: "Mwen konprann. Poukisa travay ou te fini? Yo te revoke w, yo te lage w, oswa ou te kite?",
+        field: 'reason',
+        next: 'tax_question'
+      },
+      tax_question: {
+        message: "Yon lòt bagay: Fòmilè a mande si w vle kenbe 10% nan benefis ou pou taks federal. Sa vle di:\n\n• **Wi** = Resevwa 10% mwens kounye a, men pa gen bòdwo taks pita\n• **Non** = Resevwa montan total la kounye a, men ou ka dwe taks nan avril\n\nKòm ou te mansyone w bezwen lajan ijans, m ta sijere **Non** - resevwa montan total la kounye a. Ki sa w prefere?",
+        field: 'taxWithholding',
+        next: 'notifications'
+      },
+      notifications: {
+        message: "Dènye kesyon: Kijan w vle resevwa notifikasyon sou reklamasyon w? Imèl, mesaj tèks, oswa tou de?",
+        field: 'notifications',
+        next: 'complete'
+      },
+      complete: {
+        message: "Pafè! Mwen kolekte tout enfòmasyon ki nesesè. Kite m montre w sa m ranpli pou w ka revize tout bagay anvan nou soumèt li.",
+        trigger: () => {
+          setShowReview(true);
+          return false;
+        }
+      }
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    // Initial message
+    setTimeout(() => {
+      addAIMessage(conversationFlows[language].intro.message);
+    }, 500);
+  }, [language]);
+
+  const addAIMessage = (text) => {
+    setIsTyping(true);
+    setTimeout(() => {
+      setMessages(prev => [...prev, { type: 'ai', text }]);
+      setIsTyping(false);
+    }, 1000);
+  };
+
+  const addUserMessage = (text) => {
+    setMessages(prev => [...prev, { type: 'user', text }]);
+  };
+
+  const handleSend = () => {
+    if (!input.trim()) return;
+
+    const userInput = input.trim();
+    addUserMessage(userInput);
+    setInput('');
+
+    const flow = conversationFlows[language];
+    const currentFlow = flow[currentStep];
+
+    // Store the data if this step has a field
+    if (currentFlow.field) {
+      setFormData(prev => ({
+        ...prev,
+        [currentFlow.field]: userInput
+      }));
+    }
+
+    // Move to next step
+    const nextStep = currentFlow.next;
+    setCurrentStep(nextStep);
+
+    // Send next AI message
+    setTimeout(() => {
+      const nextFlow = flow[nextStep];
+      if (nextFlow.trigger && !nextFlow.trigger()) {
+        return;
+      }
+      
+      const message = typeof nextFlow.message === 'function' 
+        ? nextFlow.message({...formData, [currentFlow.field]: userInput})
+        : nextFlow.message;
+      
+      addAIMessage(message);
+    }, 1500);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const fieldLabels = {
+    en: {
+      state: "State",
+      name: "Full Name",
+      terminationDate: "Last Day of Work",
+      employer: "Employer",
+      jobTitle: "Job Title",
+      reason: "Reason for Separation",
+      taxWithholding: "Tax Withholding",
+      notifications: "Notification Preference"
+    },
+    es: {
+      state: "Estado",
+      name: "Nombre Completo",
+      terminationDate: "Último Día de Trabajo",
+      employer: "Empleador",
+      jobTitle: "Título del Trabajo",
+      reason: "Razón de Separación",
+      taxWithholding: "Retención de Impuestos",
+      notifications: "Preferencia de Notificación"
+    },
+    ht: {
+      state: "Eta",
+      name: "Non Konplè",
+      terminationDate: "Dènye Jou Travay",
+      employer: "Anplwayè",
+      jobTitle: "Tit Travay",
+      reason: "Rezon Separasyon",
+      taxWithholding: "Retni Taks",
+      notifications: "Preferans Notifikasyon"
+    }
+  };
+
+  const [submitted, setSubmitted] = useState(false);
+  const [monitoring, setMonitoring] = useState(false);
+  const [simulatedStatus, setSimulatedStatus] = useState('submitted');
+  const [notifications, setNotifications] = useState([]);
+
+  // Simulate status changes after submission
+  useEffect(() => {
+    if (monitoring) {
+      const timer1 = setTimeout(() => {
+        setSimulatedStatus('under_review');
+        addNotification('🔍 Status Update: Your claim is now under review');
+      }, 3000);
+      
+      const timer2 = setTimeout(() => {
+        setSimulatedStatus('approved');
+        addNotification('🎉 Great news! Your claim has been approved - $275/week');
+      }, 6000);
+      
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
+    }
+  }, [monitoring]);
+
+  const addNotification = (text) => {
+    setNotifications(prev => [...prev, { text, time: new Date().toLocaleTimeString() }]);
+  };
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-4xl mx-auto space-y-4">
+          {/* Success Card */}
+          <div className="bg-white rounded-lg shadow-xl p-6">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Application Submitted!</h2>
+              <p className="text-gray-600 mb-4">Your unemployment claim has been filed with Florida.</p>
+              <p className="text-sm text-gray-500">Confirmation #: FL-2026-123456</p>
+            </div>
+          </div>
+
+          {/* Monitoring Status */}
+          <div className="bg-white rounded-lg shadow-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Claim Status Monitoring</h3>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${monitoring ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
+                <span className="text-sm text-gray-600">{monitoring ? 'Active' : 'Paused'}</span>
+              </div>
+            </div>
+            
+            {/* Status Timeline */}
+            <div className="space-y-4 mb-6">
+              <div className="flex items-start gap-4">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${simulatedStatus === 'submitted' || simulatedStatus === 'under_review' || simulatedStatus === 'approved' ? 'bg-green-500' : 'bg-gray-300'}`}>
+                  <CheckCircle className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-800">Application Submitted</p>
+                  <p className="text-sm text-gray-600">January 8, 2026 at {new Date().toLocaleTimeString()}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-4">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${simulatedStatus === 'under_review' || simulatedStatus === 'approved' ? 'bg-green-500' : simulatedStatus === 'submitted' ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'}`}>
+                  {simulatedStatus === 'under_review' || simulatedStatus === 'approved' ? (
+                    <CheckCircle className="w-5 h-5 text-white" />
+                  ) : (
+                    <div className="w-3 h-3 rounded-full bg-white"></div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-800">Under Review</p>
+                  <p className="text-sm text-gray-600">
+                    {simulatedStatus === 'under_review' || simulatedStatus === 'approved' ? 'In progress...' : 'Waiting...'}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-4">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${simulatedStatus === 'approved' ? 'bg-green-500' : 'bg-gray-300'}`}>
+                  {simulatedStatus === 'approved' ? (
+                    <CheckCircle className="w-5 h-5 text-white" />
+                  ) : (
+                    <div className="w-3 h-3 rounded-full bg-white"></div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-800">Decision</p>
+                  <p className="text-sm text-gray-600">
+                    {simulatedStatus === 'approved' ? '✅ Approved - $275/week' : 'Pending...'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Monitoring Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-blue-900 mb-2">AI Monitoring Active</p>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>✓ Checking status every 2 hours</li>
+                    <li>✓ Will notify you immediately of any changes</li>
+                    <li>✓ Typical processing time: 5-7 days</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notifications Panel */}
+          {notifications.length > 0 && (
+            <div className="bg-white rounded-lg shadow-xl p-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">Recent Notifications</h3>
+              <div className="space-y-3">
+                {notifications.map((notif, idx) => (
+                  <div key={idx} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-2xl">{notif.text.charAt(0)}</div>
+                    <div className="flex-1">
+                      <p className="text-gray-800">{notif.text.substring(2)}</p>
+                      <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Phone Support Options */}
+          <div className="bg-white rounded-lg shadow-xl p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Need Help?</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              <button className="flex items-center gap-3 p-4 border-2 border-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">📞</span>
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">Call AI Assistant</p>
+                  <p className="text-sm text-gray-600">24/7 voice support</p>
+                </div>
+              </button>
+              
+              <button className="flex items-center gap-3 p-4 border-2 border-green-600 rounded-lg hover:bg-green-50 transition-colors">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🤝</span>
+                </div>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-800">Call Government For Me</p>
+                  <p className="text-sm text-gray-600">I'll handle the hold time</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Start Monitoring Button */}
+          {!monitoring && (
+            <button 
+              onClick={() => setMonitoring(true)}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg"
+            >
+              Start AI Monitoring Demo
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (showReview) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-lg shadow-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">{t.reviewing}</h2>
+                <p className="text-gray-600 mt-1">Please verify all information is correct</p>
+              </div>
+              <button
+                onClick={() => setLanguage(language === 'en' ? 'es' : language === 'es' ? 'ht' : 'en')}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                <Globe className="w-4 h-4" />
+                <span className="text-sm">{t.changeLanguage}</span>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {Object.entries(formData).map(([key, value]) => (
+                <div key={key} className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                      {fieldLabels[language][key]}
+                    </p>
+                    <p className="text-lg text-gray-800 mt-1">{value}</p>
+                  </div>
+                  <button className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+                    {t.edit}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-green-900">Ready to Submit</p>
+                  <p className="text-sm text-green-700 mt-1">
+                    All required information has been collected. Review the details above, then click submit to file your unemployment application.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setSubmitted(true)}
+              className="w-full mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg"
+            >
+              {t.submit}
+            </button>
+
+            <p className="text-center text-sm text-gray-500 mt-4">
+              This is a demo. Click submit to see monitoring features.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">{t.title}</h1>
+                <p className="text-blue-100 mt-1">{t.subtitle}</p>
+              </div>
+              <button
+                onClick={() => setLanguage(language === 'en' ? 'es' : language === 'es' ? 'ht' : 'en')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+              >
+                <Globe className="w-4 h-4" />
+                <span className="text-sm">{language === 'en' ? 'English' : language === 'es' ? 'Español' : 'Kreyòl'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="h-[500px] overflow-y-auto p-6 space-y-4">
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-4 ${
+                    msg.type === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  <p className="whitespace-pre-line">{msg.text}</p>
+                </div>
+              </div>
+            ))}
+            
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-lg p-4">
+                  <div className="flex space-x-2">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="border-t border-gray-200 p-4 bg-gray-50">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={t.placeholder}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isTyping}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || isTyping}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                <span className="hidden sm:inline">{t.send}</span>
+              </button>
+            </div>
+            
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              This is a demonstration. Responses are simulated, not real AI.
+            </p>
+          </div>
+        </div>
+
+        {/* Info Panel */}
+        <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-gray-800">Demo Features</h3>
+              <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                <li>• Natural language conversation in English, Spanish, and Haitian Creole</li>
+                <li>• Plain-English explanations of complex questions</li>
+                <li>• Progress tracking and form review before submission</li>
+                <li>• Simulated responses - production version would use real AI</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AIFormFillerDemo;
